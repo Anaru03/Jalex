@@ -1,0 +1,27 @@
+(* ejemplo.yal - tomado del documento YALex UVG CC3071 *)
+{
+  import myToken
+}
+
+(* Definiciones reutilizables con let *)
+let digit   = ['0'-'9']
+let letter  = ['a'-'z' 'A'-'Z']
+let blank   = [' ' '\t']
+let newline = ['\n']
+
+rule gettoken =
+    blank+             { return lexbuf }        (* skip blanks *)
+  | newline            { return EOL }
+  | digit+             { return int(lxm) }
+  | letter (letter | digit)*  { return ID(lxm) }
+  | '+'                { return PLUS }
+  | '-'                { return MINUS }
+  | '*'                { return TIMES }
+  | '/'                { return DIV }
+  | '('                { return LPAREN }
+  | ')'                { return RPAREN }
+  | eof                { raise('Fin de buffer') }
+
+{
+  (* trailer: fin del archivo generado *)
+}
