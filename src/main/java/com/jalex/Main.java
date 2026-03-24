@@ -6,7 +6,6 @@ import com.jalex.nfa.Thompson;
 import com.jalex.regex.RegexParser;
 import com.jalex.yal.YalParseException;
 import com.jalex.yal.YalParser;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -104,76 +103,76 @@ public class Main {
      */
     private static void processYal(YalParser yal) {
 
-        // ── 1. Mostrar estructura parseada ─────────────────────────────────
-        System.out.println(yal);
-        System.out.println("─".repeat(50));
+    System.out.println(yal);
+    System.out.println("─".repeat(50));
 
-        // ── 2. Construir NFA para cada regla ───────────────────────────────
-        List<YalParser.Rule> expandedRules = yal.getExpandedRules();
-        List<NFA> nfas    = new ArrayList<>();
-        List<String> acts = new ArrayList<>();
+    List<YalParser.Rule> expandedRules = yal.getExpandedRules();
+    List<NFA> nfas    = new ArrayList<>();
+    List<String> acts = new ArrayList<>();
 
-        NFAState.resetCounter(); // IDs desde 0 para este NFA
+    NFAState.resetCounter();
 
-        System.out.println("── Construcción de NFAs por regla ──\n");
+    System.out.println("── Construcción de NFAs por regla ──\n");
 
-        for (int i = 0; i < expandedRules.size(); i++) {
-            YalParser.Rule rule = expandedRules.get(i);
+    for (int i = 0; i < expandedRules.size(); i++) {
+        YalParser.Rule rule = expandedRules.get(i);
 
-            System.out.println("[Regla " + i + "] regexp: " + rule.regexp);
+        System.out.println("[Regla " + i + "] regexp: " + rule.regexp);
 
-            // Postfijo
-            RegexParser rp = new RegexParser(rule.regexp);
-            String withConcat = rp.insertConcatenationOperators();
-            String postfix    = rp.toPostfix();
-            System.out.println("  → con concat : " + withConcat);
-            System.out.println("  → postfijo   : " + postfix);
+        RegexParser rp = new RegexParser(rule.regexp);
+        String withConcat = rp.insertConcatenationOperators();
+        List<String> postfix = rp.toPostfix();
 
-            // Thompson
-            NFA nfa;
-            try {
-                nfa = Thompson.buildFromPostfix(postfix);
-            } catch (Exception e) {
-                System.err.println("  ✗ ERROR al construir NFA: " + e.getMessage());
-                continue;
-            }
+        System.out.println("  → con concat : " + withConcat);
+        System.out.println("  → postfijo   : " + postfix);
 
-            System.out.println("  → NFA         : start=" + nfa.start + ", end=" + nfa.end);
-            System.out.println("  → Estados     : " + nfa.getAllStates().size());
-            System.out.println(nfa);
-
-            nfas.add(nfa);
-            acts.add(rule.action);
+        NFA nfa;
+        try {
+            nfa = Thompson.buildFromPostfix(postfix);
+        } catch (Exception e) {
+            System.err.println("  ✗ ERROR al construir NFA: " + e.getMessage());
+            continue;
         }
 
-        // ── 3. Combinar en un NFA global ───────────────────────────────────
-        if (!nfas.isEmpty()) {
-            System.out.println("─".repeat(50));
-            System.out.println("── NFA Global (combinado) ──\n");
+        System.out.println("  → NFA         : start=" + nfa.start + ", end=" + nfa.end);
+        System.out.println("  → Estados     : " + nfa.getAllStates().size());
+        System.out.println(nfa);
 
-            NFA combined = Thompson.combine(nfas, acts);
+        nfas.add(nfa);
+        acts.add(rule.action);
+    }
 
-            System.out.println("Estado inicial global: " + combined.start);
-            System.out.println("Total de estados     : " + combined.getAllStates().size());
-            System.out.println("Alfabeto del NFA     : " + combined.getAlphabet());
-            System.out.println();
+    if (!nfas.isEmpty()) {
+        System.out.println("─".repeat(50));
+        System.out.println("── NFA Global (combinado) ──\n");
 
-            // Mostrar estados aceptantes
-            System.out.println("Estados aceptantes:");
-            for (var state : combined.getAllStates()) {
-                if (state.isAccepting) {
-                    System.out.println("  " + state + " → acción: " +
-                            (state.action != null ? state.action : "(ninguna)"));
-                }
+        NFA combined = Thompson.combine(nfas, acts);
+
+        System.out.println("Estado inicial global: " + combined.start);
+        System.out.println("Total de estados     : " + combined.getAllStates().size());
+        System.out.println("Alfabeto del NFA     : " + combined.getAlphabet());
+        System.out.println();
+
+        System.out.println("Estados aceptantes:");
+        for (var state : combined.getAllStates()) {
+            if (state.isAccepting) {
+                System.out.println("  " + state + " → acción: " + state.action);
             }
+        }
 
-            System.out.println();
-            System.out.println("─".repeat(50));
-            System.out.println("✓ Parte 1 completa.");
-            System.out.println("  El colaborador puede tomar `combined` para Subset Construction (DFA).");
+        System.out.println("\n" + "─".repeat(50));
+        System.out.println("✓ Parte 1 completa.");
 
-        } else {
-            System.out.println("No se construyeron NFAs (revisa las reglas del .yal).");
+        // 🔥 AQUÍ ESTÁ TU PARTE (DFA)
+        System.out.println("\n── Construcción del DFA ──");
+
+        com.jalex.dfa.DFA dfa = com.jalex.dfa.SubsetConstruction.build(combined);
+
+        System.out.println("Total estados DFA: " + dfa.getStates().size());
+        System.out.println("Estados aceptantes DFA: " + dfa.getAcceptingStates().size());
+
+        System.out.println("\n── DFA generado ──");
+        System.out.println(dfa);
         }
     }
 }
