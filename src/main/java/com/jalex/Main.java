@@ -172,7 +172,15 @@ public class Main {
         System.out.println("Estados aceptantes DFA: " + dfa.getAcceptingStates().size());
 
         System.out.println("\n── DFA generado ──");
-        System.out.println(dfa);
+        System.out.println(dfa);  
+        
+        System.out.println("\n── Análisis Léxico ──");
+
+        com.jalex.gen.SimpleLexer lexer = new com.jalex.gen.SimpleLexer();
+
+        String input = "12+3";
+
+        lexer.tokenize(dfa, input);
         }
     }
 }

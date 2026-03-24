@@ -19,7 +19,8 @@ public class DFASimulator {
 
             while (j < input.length()) {
 
-                String symbol = String.valueOf(input.charAt(j));
+                char c = input.charAt(j);
+                String symbol = mapSymbol(c);
 
                 DFAState next = current.getTransition(symbol);
 
@@ -46,5 +47,29 @@ public class DFASimulator {
                 i++;
             }
         }
+    }
+
+    /**
+     * Mapea caracteres de entrada a los símbolos del DFA
+     */
+    private String mapSymbol(char c) {
+
+        // dígitos
+        if (Character.isDigit(c)) {
+            return "CLASS:0,1,2,3,4,5,6,7,8,9,";
+        }
+
+        // espacios y tabs
+        if (c == ' ' || c == '\t') {
+            return "CLASS:   , ,";
+        }
+
+        // salto de línea
+        if (c == '\n') {
+            return "CLASS:\n,";
+        }
+
+        // símbolos directos (+ - * / ( ) etc.)
+        return String.valueOf(c);
     }
 }
