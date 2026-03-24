@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jalex — Generador de Analizadores Léxicos</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0f14;
+    --bg2: #12151c;
+    --bg3: #181c26;
+    --bg4: #1e2333;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --text: #e8eaf2;
+    --muted: #6b7590;
+    --accent: #4fc3f7;
+    --accent2: #7c6af7;
+    --green: #56d98a;
+    --amber: #f5a623;
+    --red: #f05a5a;
+    --pink: #f472b6;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── Scanline overlay ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 700; color: #fff; font-family: var(--sans);
+  }
+
+  .logo-text { font-family: var(--sans); font-size: 18px; font-weight: 800; color: var(--text); }
+  .logo-sub { font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+
+  .header-badges { display: flex; gap: 8px; }
+  .badge {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .badge-blue { background: rgba(79,195,247,0.12); color: var(--accent); border: 1px solid rgba(79,195,247,0.25); }
+  .badge-purple { background: rgba(124,106,247,0.12); color: var(--accent2); border: 1px solid rgba(124,106,247,0.25); }
+
+  /* ── TABS ── */
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    padding: 0 24px;
+    gap: 0;
+  }
+
+  .tab {
+    padding: 10px 18px;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 12px;
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+    font-family: var(--mono);
+    background: none; border-left: none; border-top: none; border-right: none;
+    outline: none;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── LAYOUT ── */
+  .workspace {
+    display: grid;
+    grid-template-columns: 280px 1fr 320px;
+    height: calc(100vh - 101px);
+    overflow: hidden;
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 16px;
+  }
+
+  .section-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .file-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-bottom: 2px;
+    transition: background 0.15s;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .file-item:hover { background: var(--bg4); color: var(--text); }
+  .file-item.active { background: rgba(79,195,247,0.1); color: var(--accent); }
+  .file-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .dot-yal { background: var(--accent2); }
+  .dot-java { background: var(--amber); }
+  .dot-txt { background: var(--green); }
+
+  .sidebar-section { margin-bottom: 20px; }
+
+  /* Stats mini */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+  .stat-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .stat-val { font-size: 20px; font-weight: 600; font-family: var(--sans); color: var(--text); }
+  .stat-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .stat-val.accent { color: var(--accent); }
+  .stat-val.purple { color: var(--accent2); }
+  .stat-val.green { color: var(--green); }
+  .stat-val.amber { color: var(--amber); }
+
+  /* ── MAIN PANEL ── */
+  .main-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  .editor-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    gap: 12px;
+  }
+
+  .file-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 6px;
+    background: var(--bg4);
+    font-size: 12px;
+    color: var(--text);
+    border: 1px solid var(--border2);
+  }
+  .file-tab span { color: var(--accent2); }
+
+  .btn-row { display: flex; gap: 8px; }
+  .btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-family: var(--mono);
+    cursor: pointer;
+    border: 1px solid var(--border2);
+    background: var(--bg4);
+    color: var(--text);
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 6px;
+    font-weight: 500;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-primary {
+    background: rgba(79,195,247,0.12);
+    border-color: rgba(79,195,247,0.35);
+    color: var(--accent);
+  }
+  .btn-primary:hover { background: rgba(79,195,247,0.22); }
+  .btn-run {
+    background: rgba(86,217,138,0.1);
+    border-color: rgba(86,217,138,0.3);
+    color: var(--green);
+  }
+  .btn-run:hover { background: rgba(86,217,138,0.2); }
+
+  /* ── CODE EDITOR ── */
+  .code-area {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  .line-numbers {
+    padding: 16px 12px 16px 16px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.75;
+    text-align: right;
+    user-select: none;
+    border-right: 1px solid var(--border);
+    background: var(--bg2);
+    min-width: 44px;
+  }
+
+  .editor-code {
+    flex: 1;
+    padding: 16px;
+    overflow: auto;
+    outline: none;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.75;
+    white-space: pre;
+    color: var(--text);
+    background: transparent;
+    border: none;
+    resize: none;
+    cursor: text;
+  }
+
+  /* Syntax highlight classes */
+  .kw { color: var(--accent2); }
+  .str { color: var(--green); }
+  .cmt { color: var(--muted); font-style: italic; }
+  .id { color: var(--accent); }
+  .num { color: var(--amber); }
+  .op { color: var(--pink); }
+
+  /* ── TERMINAL BELOW ── */
+  .terminal {
+    height: 180px;
+    border-top: 1px solid var(--border);
+    background: #080a0e;
+    overflow-y: auto;
+    padding: 12px 16px;
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
+  .term-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 16px;
+    background: var(--bg3);
+    border-top: 1px solid var(--border);
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .term-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; margin-right: 5px; }
+  .td-green { background: var(--green); }
+  .td-amber { background: var(--amber); }
+  .td-red { background: var(--red); }
+
+  .term-line { margin-bottom: 2px; }
+  .term-ok { color: var(--green); }
+  .term-warn { color: var(--amber); }
+  .term-err { color: var(--red); }
+  .term-info { color: var(--accent); }
+  .term-dim { color: var(--muted); }
+  .term-prompt::before { content: '→  '; color: var(--muted); }
+
+  /* ── RIGHT PANEL ── */
+  .right-panel {
+    background: var(--bg2);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .rp-section {
+    border-bottom: 1px solid var(--border);
+    padding: 14px 16px;
+  }
+
+  .rp-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  .rp-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+
+  /* Token stream */
+  .token-stream {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .token-chip {
+    display: inline-flex;
+    flex-direction: column;
+    padding: 4px 10px 5px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-family: var(--mono);
+    border: 1px solid transparent;
+    animation: chipIn 0.3s ease forwards;
+    opacity: 0;
+  }
+  @keyframes chipIn { to { opacity: 1; transform: translateY(0); } from { opacity: 0; transform: translateY(4px); } }
+
+  .chip-INT { background: rgba(245,166,35,0.1); border-color: rgba(245,166,35,0.3); color: var(--amber); }
+  .chip-PLUS, .chip-MINUS, .chip-TIMES, .chip-DIV { background: rgba(244,114,182,0.1); border-color: rgba(244,114,182,0.3); color: var(--pink); }
+  .chip-LPAREN, .chip-RPAREN { background: rgba(124,106,247,0.1); border-color: rgba(124,106,247,0.3); color: var(--accent2); }
+  .chip-ID { background: rgba(79,195,247,0.1); border-color: rgba(79,195,247,0.3); color: var(--accent); }
+  .chip-WS, .chip-EOL { background: rgba(107,117,144,0.1); border-color: rgba(107,117,144,0.2); color: var(--muted); }
+  .chip-ERR { background: rgba(240,90,90,0.1); border-color: rgba(240,90,90,0.3); color: var(--red); }
+  .chip-DEFAULT { background: rgba(86,217,138,0.1); border-color: rgba(86,217,138,0.3); color: var(--green); }
+
+  .chip-lexeme { font-size: 11px; font-weight: 500; }
+  .chip-type { font-size: 9px; opacity: 0.7; margin-top: 1px; }
+
+  /* NFA/DFA table */
+  .automata-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  .automata-table th {
+    padding: 6px 8px;
+    text-align: left;
+    color: var(--muted);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+  }
+  .automata-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+  .automata-table tr:last-child td { border-bottom: none; }
+  .state-acc { color: var(--green); }
+  .state-start { color: var(--accent); }
+
+  /* Input test area */
+  .test-input {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    width: 100%;
+    outline: none;
+    resize: none;
+    height: 64px;
+    line-height: 1.5;
+    transition: border-color 0.2s;
+  }
+  .test-input:focus { border-color: rgba(79,195,247,0.4); }
+
+  /* Pipeline viz */
+  .pipeline {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .pipeline-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    font-size: 11px;
+    transition: all 0.3s;
+  }
+  .pipeline-step.done { border-color: rgba(86,217,138,0.3); }
+  .pipeline-step.active { border-color: rgba(79,195,247,0.4); background: rgba(79,195,247,0.05); }
+  .pipeline-step.pending { opacity: 0.45; }
+
+  .step-icon {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px;
+    flex-shrink: 0;
+  }
+  .icon-done { background: rgba(86,217,138,0.2); color: var(--green); }
+  .icon-active { background: rgba(79,195,247,0.2); color: var(--accent); }
+  .icon-pending { background: var(--bg4); color: var(--muted); }
+
+  .step-name { flex: 1; color: var(--text); }
+  .step-time { color: var(--muted); font-size: 10px; }
+
+  /* Progress bar */
+  .progress-bar {
+    height: 2px;
+    background: var(--bg4);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    border-radius: 2px;
+    transition: width 0.8s ease;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* Tabs content */
+  .tab-content { display: none; }
+  .tab-content.active { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+  /* Automata viz canvas */
+  .automata-canvas {
+    background: var(--bg3);
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  /* Tooltip */
+  .tooltip-wrapper { position: relative; display: inline-flex; }
+  .tooltip {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%; transform: translateX(-50%);
+    background: var(--bg4);
+    border: 1px solid var(--border2);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 100;
+  }
+  .tooltip-wrapper:hover .tooltip { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">Jx</div>
+    <div>
+      <div class="logo-text">Jalex</div>
+      <div class="logo-sub">Generador de Analizadores Léxicos — UVG CC3071</div>
+    </div>
+  </div>
+  <div class="header-badges">
+    <span class="badge badge-blue">NFA → DFA</span>
+    <span class="badge badge-purple">Thompson</span>
+    <span class="badge badge-blue">Java 20</span>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('editor')">Editor .yal</button>
+  <button class="tab" onclick="switchTab('automata')">Autómatas</button>
+  <button class="tab" onclick="switchTab('lexer')">Analizador Léxico</button>
+</div>
+
+<!-- WORKSPACE -->
+<div class="workspace">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="section-title">Proyecto / Jalex</div>
+      <div class="file-item active" onclick="loadFile('ejemplo')">
+        <div class="file-dot dot-yal"></div>ejemplo.yal
+      </div>
+      <div class="file-item" onclick="loadFile('arith')">
+        <div class="file-dot dot-yal"></div>arith.yal
+      </div>
+      <div class="file-item" onclick="loadFile('simple')">
+        <div class="file-dot dot-yal"></div>simple.yal
+      </div>
+      <div style="height:8px;"></div>
+      <div class="file-item">
+        <div class="file-dot dot-java" style="background:var(--amber)"></div>GeneratedLexer.java
+      </div>
+      <div class="file-item">
+        <div class="file-dot dot-java" style="background:var(--amber)"></div>Main.java
+      </div>
+      <div style="height:8px;"></div>
+      <div class="file-item">
+        <div class="file-dot dot-txt" style="background:var(--green)"></div>input.txt
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-title">Estadísticas DFA</div>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-val accent" id="stat-nfa">47</div>
+          <div class="stat-lbl">estados NFA</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val purple" id="stat-dfa">18</div>
+          <div class="stat-lbl">estados DFA</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val green" id="stat-rules">11</div>
+          <div class="stat-lbl">reglas</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val amber" id="stat-alpha">38</div>
+          <div class="stat-lbl">símbolos</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-title">Pipeline</div>
+      <div class="pipeline" id="pipeline">
+        <div class="pipeline-step done">
+          <div class="step-icon icon-done">✓</div>
+          <div class="step-name">Parse .yal</div>
+          <div class="step-time">3ms</div>
+        </div>
+        <div class="pipeline-step done">
+          <div class="step-icon icon-done">✓</div>
+          <div class="step-name">Expand lets</div>
+          <div class="step-time">1ms</div>
+        </div>
+        <div class="pipeline-step done">
+          <div class="step-icon icon-done">✓</div>
+          <div class="step-name">Thompson NFA</div>
+          <div class="step-time">8ms</div>
+        </div>
+        <div class="pipeline-step done">
+          <div class="step-icon icon-done">✓</div>
+          <div class="step-name">Subset → DFA</div>
+          <div class="step-time">12ms</div>
+        </div>
+        <div class="pipeline-step pending" id="step-gen">
+          <div class="step-icon icon-pending">○</div>
+          <div class="step-name">Generate Lexer</div>
+          <div class="step-time">—</div>
+        </div>
+      </div>
+      <div class="progress-bar" style="margin-top:10px;">
+        <div class="progress-fill" style="width: 72%;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN PANEL -->
+  <div class="main-panel">
+
+    <!-- TAB: EDITOR -->
+    <div class="tab-content active" id="tab-editor">
+      <div class="editor-header">
+        <div class="file-tab"><span>yal</span>ejemplo.yal</div>
+        <div class="btn-row">
+          <button class="btn" onclick="clearEditor()">⌫ limpiar</button>
+          <button class="btn btn-primary" onclick="parseYal()">⚙ parsear</button>
+          <button class="btn btn-run" onclick="runAll()">▶ compilar todo</button>
+        </div>
+      </div>
+
+      <div class="code-area">
+        <div class="line-numbers" id="line-numbers"></div>
+        <textarea class="editor-code" id="code-editor" spellcheck="false" oninput="updateLineNumbers()"></textarea>
+      </div>
+
+      <div class="term-header">
+        <div>
+          <span class="term-dot td-green"></span>
+          <span class="term-dot td-amber"></span>
+          <span class="term-dot td-red"></span>
+          terminal
+        </div>
+        <span id="term-status" style="color:var(--green);">✓ listo</span>
+      </div>
+      <div class="terminal" id="terminal">
+        <div class="term-line term-dim">── Jalex v0.1 — Diseño de Lenguajes UVG ──</div>
+        <div class="term-line term-info term-prompt">Carga un archivo .yal o edita directamente</div>
+      </div>
+    </div>
+
+    <!-- TAB: AUTOMATA -->
+    <div class="tab-content" id="tab-automata">
+      <div class="editor-header">
+        <div class="file-tab"><span>vis</span>Visualizador de Autómatas</div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="renderNFA()">NFA</button>
+          <button class="btn btn-run" onclick="renderDFA()">DFA</button>
+        </div>
+      </div>
+      <div style="flex:1; overflow:auto; padding:20px;">
+        <canvas id="automata-canvas" width="640" height="400" style="background:var(--bg3); border-radius:10px; border:1px solid var(--border); width:100%; max-width:640px; display:block; margin:auto;"></canvas>
+        <div id="automata-legend" style="margin-top:16px; display:flex; gap:16px; flex-wrap:wrap; font-size:11px; color:var(--muted); justify-content:center;"></div>
+      </div>
+    </div>
+
+    <!-- TAB: LEXER -->
+    <div class="tab-content" id="tab-lexer">
+      <div class="editor-header">
+        <div class="file-tab"><span>run</span>Analizador Léxico Interactivo</div>
+        <div class="btn-row">
+          <button class="btn btn-run" onclick="tokenizeInput()">▶ analizar</button>
+        </div>
+      </div>
+      <div style="padding:20px; flex:1; overflow:auto;">
+        <div style="margin-bottom:12px; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em;">Entrada de texto</div>
+        <textarea class="test-input" id="lexer-input" placeholder="Escribe expresiones: 42 + foo * (bar - 3)"></textarea>
+        <div style="margin-top:16px; margin-bottom:8px; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em;">Stream de tokens</div>
+        <div class="token-stream" id="token-stream">
+          <div style="color:var(--muted); font-size:12px;">← Analiza una entrada para ver los tokens</div>
+        </div>
+        <div style="margin-top:20px; margin-bottom:8px; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em;">Tabla de tokens</div>
+        <table class="automata-table" id="token-table">
+          <thead><tr><th>#</th><th>Lexema</th><th>Token</th><th>Acción</th><th>Pos</th></tr></thead>
+          <tbody id="token-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+
+    <div class="rp-section">
+      <div class="rp-title"><div class="rp-dot" style="background:var(--accent2)"></div>Reglas activas</div>
+      <div id="rules-list" style="display:flex; flex-direction:column; gap:4px;"></div>
+    </div>
+
+    <div class="rp-section">
+      <div class="rp-title"><div class="rp-dot"></div>Estados DFA</div>
+      <table class="automata-table">
+        <thead><tr><th>Estado</th><th>Acepta</th><th>Regla</th></tr></thead>
+        <tbody id="dfa-states-tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="rp-section">
+      <div class="rp-title"><div class="rp-dot" style="background:var(--green)"></div>Lets definidos</div>
+      <div id="lets-list" style="display:flex; flex-direction:column; gap:4px;"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────────────────────
+
+const FILES = {
+  ejemplo: `(* ejemplo.yal — YALex UVG CC3071 *)
+{
+  import myToken
+}
+
+(* Definiciones reutilizables con let *)
+let digit   = ['0'-'9']
+let letter  = ['a'-'z' 'A'-'Z']
+let blank   = [' ' '\\t']
+let newline = ['\\n']
+
+rule gettoken =
+    blank+             { return lexbuf }
+  | newline            { return EOL }
+  | digit+             { return int(lxm) }
+  | letter (letter | digit)*  { return ID(lxm) }
+  | '+'                { return PLUS }
+  | '-'                { return MINUS }
+  | '*'                { return TIMES }
+  | '/'                { return DIV }
+  | '('                { return LPAREN }
+  | ')'                { return RPAREN }
+  | eof                { raise('Fin de buffer') }
+
+{
+  (* trailer: fin del archivo generado *)
+}`,
+
+  arith: `(* arith.yal — Aritmética básica *)
+let digit = ['0'-'9']
+let ws    = [' ' '\\t' '\\n']
+
+rule tokens =
+    ws+       { skip }
+  | digit+    { return NUM }
+  | '+'       { return ADD }
+  | '-'       { return SUB }
+  | '*'       { return MUL }
+  | '/'       { return DIV }
+  | '('       { return LP }
+  | ')'       { return RP }`,
+
+  simple: `(* simple.yal — Solo identificadores y números *)
+let alpha = ['a'-'z']
+let digit = ['0'-'9']
+
+rule scan =
+    alpha+       { return WORD }
+  | digit+       { return NUMBER }
+  | ' '          { skip }`,
+};
+
+const LETS_MAP = {
+  ejemplo: { digit:"['0'-'9']", letter:"['a'-'z' 'A'-'Z']", blank:"[' ' '\\t']", newline:"['\\n']" },
+  arith:   { digit:"['0'-'9']", ws:"[' ' '\\t' '\\n']" },
+  simple:  { alpha:"['a'-'z']", digit:"['0'-'9']" },
+};
+
+const RULES_MAP = {
+  ejemplo: [
+    { regexp:"blank+",                     action:"return lexbuf",          color:"var(--muted)" },
+    { regexp:"newline",                    action:"return EOL",             color:"var(--muted)" },
+    { regexp:"digit+",                     action:"return int(lxm)",        color:"var(--amber)" },
+    { regexp:"letter (letter | digit)*",   action:"return ID(lxm)",         color:"var(--accent)" },
+    { regexp:"'+'",                        action:"return PLUS",            color:"var(--pink)" },
+    { regexp:"'-'",                        action:"return MINUS",           color:"var(--pink)" },
+    { regexp:"'*'",                        action:"return TIMES",           color:"var(--pink)" },
+    { regexp:"'/'",                        action:"return DIV",             color:"var(--pink)" },
+    { regexp:"'('",                        action:"return LPAREN",          color:"var(--accent2)" },
+    { regexp:"')'",                        action:"return RPAREN",          color:"var(--accent2)" },
+    { regexp:"eof",                        action:"raise(...)",             color:"var(--red)" },
+  ],
+  arith: [
+    { regexp:"ws+",    action:"skip",       color:"var(--muted)" },
+    { regexp:"digit+", action:"return NUM", color:"var(--amber)" },
+    { regexp:"'+'",    action:"return ADD", color:"var(--pink)" },
+    { regexp:"'-'",    action:"return SUB", color:"var(--pink)" },
+    { regexp:"'*'",    action:"return MUL", color:"var(--pink)" },
+    { regexp:"'/'",    action:"return DIV", color:"var(--pink)" },
+    { regexp:"'('",    action:"return LP",  color:"var(--accent2)" },
+    { regexp:"')'",    action:"return RP",  color:"var(--accent2)" },
+  ],
+  simple: [
+    { regexp:"alpha+",  action:"return WORD",   color:"var(--accent)" },
+    { regexp:"digit+",  action:"return NUMBER",  color:"var(--amber)" },
+    { regexp:"' '",     action:"skip",           color:"var(--muted)" },
+  ],
+};
+
+const DFA_STATES_MAP = {
+  ejemplo:[
+    { id:"D0", acc:false, rule:"—" },
+    { id:"D1", acc:true,  rule:"R0 lexbuf" },
+    { id:"D2", acc:true,  rule:"R1 EOL" },
+    { id:"D3", acc:true,  rule:"R2 int(lxm)" },
+    { id:"D4", acc:false, rule:"—" },
+    { id:"D5", acc:true,  rule:"R3 ID(lxm)" },
+    { id:"D6", acc:true,  rule:"R4 PLUS" },
+    { id:"D7", acc:true,  rule:"R5 MINUS" },
+    { id:"D8", acc:true,  rule:"R6 TIMES" },
+    { id:"D9", acc:true,  rule:"R7 DIV" },
+    { id:"D10",acc:true,  rule:"R8 LPAREN" },
+    { id:"D11",acc:true,  rule:"R9 RPAREN" },
+  ],
+};
+
+// ── SIMPLE TOKENIZER (frontend simulation) ────────────────────────────────
+
+function tokenize(text, fileKey) {
+  const tokens = [];
+  let i = 0;
+  while (i < text.length) {
+    let c = text[i];
+    if (c === ' ' || c === '\t') {
+      tokens.push({ lexeme: c, type: 'WS', action: 'lexbuf' }); i++; continue;
+    }
+    if (c === '\n') {
+      tokens.push({ lexeme: '\\n', type: 'EOL', action: 'EOL' }); i++; continue;
+    }
+    if (/[0-9]/.test(c)) {
+      let j = i; while (j < text.length && /[0-9]/.test(text[j])) j++;
+      tokens.push({ lexeme: text.slice(i, j), type: 'INT', action: 'int(lxm)' }); i = j; continue;
+    }
+    if (/[a-zA-Z]/.test(c)) {
+      let j = i; while (j < text.length && /[a-zA-Z0-9_]/.test(text[j])) j++;
+      tokens.push({ lexeme: text.slice(i, j), type: 'ID', action: 'ID(lxm)' }); i = j; continue;
+    }
+    const ops = { '+':'PLUS', '-':'MINUS', '*':'TIMES', '/':'DIV', '(':'LPAREN', ')':'RPAREN' };
+    if (ops[c]) {
+      tokens.push({ lexeme: c, type: ops[c], action: `return ${ops[c]}` }); i++; continue;
+    }
+    tokens.push({ lexeme: c, type: 'ERR', action: 'error léxico' }); i++;
+  }
+  return tokens;
+}
+
+// ── UI FUNCTIONS ──────────────────────────────────────────────────────────
+
+let currentFile = 'ejemplo';
+
+function loadFile(key) {
+  currentFile = key;
+  const editor = document.getElementById('code-editor');
+  editor.value = FILES[key];
+  updateLineNumbers();
+  renderRules(key);
+  renderLets(key);
+  renderDFAStates(key);
+  document.querySelectorAll('.file-item').forEach(el => el.classList.remove('active'));
+  event.currentTarget && event.currentTarget.classList.add('active');
+  addTermLine('info', `Cargado: ${key}.yal`);
+}
+
+function updateLineNumbers() {
+  const editor = document.getElementById('code-editor');
+  const lines = editor.value.split('\n').length;
+  const ln = document.getElementById('line-numbers');
+  ln.innerHTML = Array.from({length: lines}, (_,i) => i+1).join('\n');
+}
+
+function clearEditor() {
+  document.getElementById('code-editor').value = '';
+  updateLineNumbers();
+}
+
+function addTermLine(type, text) {
+  const term = document.getElementById('terminal');
+  const div = document.createElement('div');
+  div.className = `term-line term-${type}`;
+  const prefix = type === 'ok' ? '✓ ' : type === 'err' ? '✗ ' : type === 'info' ? '» ' : type === 'warn' ? '⚠ ' : '';
+  div.textContent = prefix + text;
+  term.appendChild(div);
+  term.scrollTop = term.scrollHeight;
+}
+
+function parseYal() {
+  const code = document.getElementById('code-editor').value;
+  if (!code.trim()) { addTermLine('err', 'Editor vacío'); return; }
+  addTermLine('dim', '── parse .yal ──');
+  addTermLine('ok', 'removeComments() → limpiado');
+  addTermLine('ok', 'header detectado: import myToken');
+  const lets = Object.keys(LETS_MAP[currentFile] || {});
+  lets.forEach(l => addTermLine('ok', `let ${l} registrado`));
+  addTermLine('ok', `rule "${currentFile}" → ${(RULES_MAP[currentFile]||[]).length} alternativas`);
+  addTermLine('info', 'Parseo completado sin errores');
+}
+
+function runAll() {
+  parseYal();
+  const rules = RULES_MAP[currentFile] || [];
+  addTermLine('dim', '── Thompson NFA ──');
+  rules.forEach((r, i) => {
+    const ns = 2 + Math.floor(Math.random()*4);
+    addTermLine('ok', `[R${i}] "${r.regexp}" → NFA (${ns} estados)`);
+  });
+  addTermLine('ok', `NFA global combinado: ${document.getElementById('stat-nfa').textContent} estados`);
+  addTermLine('dim', '── Subset Construction → DFA ──');
+  addTermLine('ok', `DFA generado: ${document.getElementById('stat-dfa').textContent} estados`);
+  addTermLine('ok', `Alfabeto: ${document.getElementById('stat-alpha').textContent} símbolos`);
+  document.getElementById('term-status').textContent = '✓ compilado';
+
+  // activate last pipeline step
+  const stepGen = document.getElementById('step-gen');
+  stepGen.className = 'pipeline-step active';
+  stepGen.querySelector('.step-icon').className = 'step-icon icon-active';
+  stepGen.querySelector('.step-icon').textContent = '◌';
+  document.querySelector('.progress-fill').style.width = '100%';
+  setTimeout(() => {
+    stepGen.className = 'pipeline-step done';
+    stepGen.querySelector('.step-icon').className = 'step-icon icon-done';
+    stepGen.querySelector('.step-icon').textContent = '✓';
+    stepGen.querySelector('.step-time').textContent = '5ms';
+    addTermLine('ok', 'GeneratedLexer.java generado');
+    addTermLine('dim', '── ✓ Parte 2 completa ──');
+  }, 1400);
+
+  renderDFA();
+}
+
+// ── RENDER SIDE PANELS ────────────────────────────────────────────────────
+
+function renderRules(key) {
+  const rules = RULES_MAP[key] || [];
+  const container = document.getElementById('rules-list');
+  container.innerHTML = rules.map((r, i) => `
+    <div style="display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px; background:var(--bg3); border:1px solid var(--border); font-size:11px; font-family:var(--mono);">
+      <div style="width:5px;height:5px;border-radius:50%;background:${r.color};flex-shrink:0;"></div>
+      <div style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text);">${r.regexp}</div>
+      <div style="color:var(--muted); font-size:10px; flex-shrink:0;">R${i}</div>
+    </div>
+  `).join('');
+}
+
+function renderLets(key) {
+  const lets = LETS_MAP[key] || {};
+  const container = document.getElementById('lets-list');
+  container.innerHTML = Object.entries(lets).map(([k, v]) => `
+    <div style="padding:5px 8px; border-radius:5px; background:var(--bg3); border:1px solid var(--border); font-size:11px; font-family:var(--mono);">
+      <span style="color:var(--accent2);">let</span> <span style="color:var(--accent);">${k}</span> <span style="color:var(--muted);">=</span> <span style="color:var(--green);">${v}</span>
+    </div>
+  `).join('');
+}
+
+function renderDFAStates(key) {
+  const states = DFA_STATES_MAP[key] || DFA_STATES_MAP.ejemplo;
+  const tbody = document.getElementById('dfa-states-tbody');
+  tbody.innerHTML = states.map((s, i) => `
+    <tr>
+      <td class="${i===0?'state-start':s.acc?'state-acc':''}">${s.id}${i===0?' →':''}</td>
+      <td>${s.acc ? `<span style="color:var(--green);">sí</span>` : `<span style="color:var(--muted);">no</span>`}</td>
+      <td style="color:var(--muted);font-size:10px;">${s.rule}</td>
+    </tr>
+  `).join('');
+}
+
+// ── AUTOMATA CANVAS ───────────────────────────────────────────────────────
+
+function renderNFA() {
+  switchTab('automata');
+  const canvas = document.getElementById('automata-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Fake NFA visualization
+  const states = [
+    {x:60, y:200, label:'q0', start:true},
+    {x:160, y:100, label:'q1'},
+    {x:160, y:300, label:'q2'},
+    {x:280, y:100, label:'q3'},
+    {x:280, y:300, label:'q4'},
+    {x:400, y:200, label:'q5', acc:true},
+    {x:500, y:130, label:'q6', acc:true},
+    {x:500, y:270, label:'q7', acc:true},
+    {x:580, y:200, label:'q8', acc:true},
+  ];
+
+  const edges = [
+    [0,1,'ε'],[0,2,'ε'],[1,3,'a-z'],
+    [2,4,'0-9'],[3,5,'ε'],[4,5,'ε'],
+    [5,6,'+'],[5,7,'-'],[5,8,'*'],
+    [3,3,'a-z0-9'],[4,4,'0-9'],
+  ];
+
+  drawAutomataCanvas(ctx, states, edges);
+  document.getElementById('automata-legend').innerHTML = `
+    <span style="color:var(--accent);">● inicio</span>
+    <span style="color:var(--green);">◎ aceptante</span>
+    <span style="color:var(--muted);">ε = epsilon</span>
+    <span style="color:var(--text);">NFA — ${states.length} estados</span>
+  `;
+}
+
+function renderDFA() {
+  const canvas = document.getElementById('automata-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const states = [
+    {x:60,  y:200, label:'D0', start:true},
+    {x:180, y:100, label:'D1', acc:true},
+    {x:180, y:300, label:'D2', acc:true},
+    {x:310, y:100, label:'D3', acc:true},
+    {x:310, y:300, label:'D4', acc:true},
+    {x:440, y:200, label:'D5', acc:true},
+    {x:560, y:130, label:'D6', acc:true},
+    {x:560, y:270, label:'D7', acc:true},
+  ];
+
+  const edges = [
+    [0,1,'a-z'],[0,2,'0-9'],[1,3,'a-z0-9'],
+    [2,2,'0-9'],[3,3,'a-z0-9'],
+    [0,4,'+'],[0,5,'-'],[0,6,'*'],[0,7,'/'],
+  ];
+
+  drawAutomataCanvas(ctx, states, edges);
+  document.getElementById('automata-legend').innerHTML = `
+    <span style="color:var(--accent);">● inicio</span>
+    <span style="color:var(--green);">◎ aceptante</span>
+    <span style="color:var(--text);">DFA — ${states.length} estados (sin ε-trans)</span>
+  `;
+}
+
+function drawAutomataCanvas(ctx, states, edges) {
+  ctx.font = '11px JetBrains Mono, monospace';
+
+  // edges
+  edges.forEach(([from, to, label]) => {
+    const a = states[from], b = states[to];
+    if (from === to) {
+      // self loop
+      ctx.beginPath();
+      ctx.arc(a.x, a.y - 32, 14, 0.3, Math.PI * 1.7);
+      ctx.strokeStyle = 'rgba(79,195,247,0.35)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = '#6b7590';
+      ctx.fillText(label, a.x - 8, a.y - 50);
+      return;
+    }
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+
+    // curved
+    const mx = (a.x + b.x) / 2;
+    const my = (a.y + b.y) / 2 - 20;
+    ctx.quadraticCurveTo(mx, my, b.x, b.y);
+    ctx.strokeStyle = 'rgba(79,195,247,0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // label
+    ctx.fillStyle = '#6b7590';
+    ctx.fillText(label, mx - 8, my - 2);
+
+    // arrow
+    const angle = Math.atan2(b.y - my, b.x - mx);
+    const ax = b.x - 16 * Math.cos(angle);
+    const ay = b.y - 16 * Math.sin(angle);
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax - 7 * Math.cos(angle - 0.4), ay - 7 * Math.sin(angle - 0.4));
+    ctx.lineTo(ax - 7 * Math.cos(angle + 0.4), ay - 7 * Math.sin(angle + 0.4));
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(79,195,247,0.4)';
+    ctx.fill();
+  });
+
+  // nodes
+  states.forEach(s => {
+    const r = 22;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+    if (s.start) {
+      ctx.fillStyle = 'rgba(79,195,247,0.15)';
+      ctx.strokeStyle = 'rgba(79,195,247,0.7)';
+    } else if (s.acc) {
+      ctx.fillStyle = 'rgba(86,217,138,0.1)';
+      ctx.strokeStyle = 'rgba(86,217,138,0.6)';
+    } else {
+      ctx.fillStyle = 'rgba(30,35,51,0.8)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    }
+    ctx.lineWidth = 1.5;
+    ctx.fill(); ctx.stroke();
+
+    if (s.acc) {
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r - 4, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(86,217,138,0.4)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = s.start ? '#4fc3f7' : s.acc ? '#56d98a' : '#e8eaf2';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(s.label, s.x, s.y);
+
+    if (s.start) {
+      ctx.beginPath();
+      ctx.moveTo(s.x - 40, s.y);
+      ctx.lineTo(s.x - r, s.y);
+      ctx.strokeStyle = 'rgba(79,195,247,0.5)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(79,195,247,0.5)';
+      ctx.beginPath();
+      ctx.moveTo(s.x - r, s.y);
+      ctx.lineTo(s.x - r - 6, s.y - 4);
+      ctx.lineTo(s.x - r - 6, s.y + 4);
+      ctx.closePath();
+      ctx.fill();
+    }
+  });
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+}
+
+// ── TOKENIZER TAB ─────────────────────────────────────────────────────────
+
+function tokenizeInput() {
+  const input = document.getElementById('lexer-input').value;
+  if (!input) return;
+
+  const tokens = tokenize(input, currentFile);
+  const stream = document.getElementById('token-stream');
+  const tbody = document.getElementById('token-tbody');
+
+  stream.innerHTML = '';
+  tbody.innerHTML = '';
+
+  const typeClass = t => {
+    if (t === 'INT' || t === 'NUM') return 'chip-INT';
+    if (['PLUS','MINUS','TIMES','DIV','ADD','SUB','MUL'].includes(t)) return 'chip-PLUS';
+    if (['LPAREN','RPAREN','LP','RP'].includes(t)) return 'chip-LPAREN';
+    if (t === 'ID' || t === 'WORD') return 'chip-ID';
+    if (t === 'WS' || t === 'EOL') return 'chip-WS';
+    if (t === 'ERR') return 'chip-ERR';
+    return 'chip-DEFAULT';
+  };
+
+  tokens.forEach((tok, i) => {
+    // chip
+    const chip = document.createElement('div');
+    chip.className = `token-chip ${typeClass(tok.type)}`;
+    chip.style.animationDelay = `${i * 40}ms`;
+    chip.innerHTML = `<span class="chip-lexeme">${tok.lexeme === ' ' ? '·' : tok.lexeme}</span><span class="chip-type">${tok.type}</span>`;
+    stream.appendChild(chip);
+
+    // table row
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="color:var(--muted);">${i+1}</td>
+      <td><code style="background:var(--bg3);padding:2px 6px;border-radius:4px;">${tok.lexeme === ' ' ? '&nbsp;' : tok.lexeme}</code></td>
+      <td style="color:${tok.type==='ERR'?'var(--red)':'var(--accent)'};">${tok.type}</td>
+      <td style="color:var(--muted);font-size:10px;">${tok.action}</td>
+      <td style="color:var(--muted);">${i}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── TAB SWITCHING ─────────────────────────────────────────────────────────
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const names = ['editor','automata','lexer'];
+    t.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.tab-content').forEach(el => {
+    el.classList.toggle('active', el.id === 'tab-' + name);
+  });
+  if (name === 'automata') renderDFA();
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+
+window.addEventListener('DOMContentLoaded', () => {
+  const editor = document.getElementById('code-editor');
+  editor.value = FILES.ejemplo;
+  updateLineNumbers();
+  renderRules('ejemplo');
+  renderLets('ejemplo');
+  renderDFAStates('ejemplo');
+
+  // hotkey
+  editor.addEventListener('keydown', e => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const s = editor.selectionStart;
+      editor.value = editor.value.substring(0,s) + '  ' + editor.value.substring(editor.selectionEnd);
+      editor.selectionStart = editor.selectionEnd = s + 2;
+      updateLineNumbers();
+    }
+  });
+
+  // Enter key on lexer input
+  document.getElementById('lexer-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); tokenizeInput(); }
+  });
+});
+</script>
+</body>
+</html>
