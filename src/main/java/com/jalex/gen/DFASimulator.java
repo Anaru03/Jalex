@@ -20,10 +20,18 @@ public class DFASimulator {
             while (j < input.length()) {
 
                 char c = input.charAt(j);
-                String symbol = mapSymbol(c);
 
-                DFAState next = current.getTransition(symbol);
+                DFAState next = null;
 
+                for (var entry : current.getAllTransitions().entrySet()) {
+                    String sym = entry.getKey();
+
+                    if (matches(sym, c)) {
+                        next = entry.getValue();
+                        break;
+                    }
+                }
+                
                 if (next == null) break;
 
                 current = next;
@@ -52,24 +60,26 @@ public class DFASimulator {
     /**
      * Mapea caracteres de entrada a los símbolos del DFA
      */
-    private String mapSymbol(char c) {
+    private boolean matches(String symbol, char c) {
 
-        // dígitos
-        if (Character.isDigit(c)) {
-            return "CLASS:0,1,2,3,4,5,6,7,8,9,";
+    // Clase de caracteres
+    if (symbol.startsWith("CLASS:")) {
+        String chars = symbol.substring(6);
+
+        String[] parts = chars.split(",");
+
+        for (String p : parts) {
+            if (p.isEmpty()) continue;
+            if (p.charAt(0) == c) return true;
         }
 
-        // espacios y tabs
-        if (c == ' ' || c == '\t') {
-            return "CLASS:   , ,";
-        }
+        return false;
+    }
 
-        // salto de línea
-        if (c == '\n') {
-            return "CLASS:\n,";
-        }
+    // EOF (no aplica en runtime normal)
+    if (symbol.equals("EOF")) return false;
 
-        // símbolos directos (+ - * / ( ) etc.)
-        return String.valueOf(c);
+    // símbolo literal (+ - * etc.)
+    return symbol.equals(String.valueOf(c));
     }
 }
